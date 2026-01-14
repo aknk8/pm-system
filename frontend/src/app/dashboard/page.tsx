@@ -124,8 +124,14 @@ export default function DashboardPage() {
                 実績管理
               </Typography>
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Button variant="outlined" onClick={() => router.push('/assignment-plans')}>
+                  アサイン計画
+                </Button>
                 <Button variant="outlined" onClick={() => router.push('/work-records')}>
                   稼働実績
+                </Button>
+                <Button variant="outlined" onClick={() => router.push('/monthly-actual-costs')}>
+                  月次給与実績
                 </Button>
                 <Button variant="outlined" onClick={() => router.push('/revenues')}>
                   売上実績

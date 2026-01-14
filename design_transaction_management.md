@@ -7,14 +7,14 @@ ITコンサルティング、テストアウトソーシング、ライセンス
 
 ### 1.2 システム範囲
 - マスタデータ管理（クライアント、プロジェクト、社員、パートナー）
-- 実績データ管理（予定、CSVインポート、給与実績、売上実績、経費）
+- 実績データ管理（予定、稼働実績、給与実績、売上実績、経費）
 - 損益分析（プロジェクト別、PM別、クライアント別）
 - レポート・ダッシュボード
 
 ### 1.3 非機能要件
 - レスポンスタイム: 画面操作は2秒以内、レポート生成は30秒以内
 - 可用性: 営業時間内（平日9:00-18:00）の稼働率99%以上
-- セキュリティ: 認証・認可機能、データ暗号化、監査ログ
+- セキュリティ: 認証・認可機能（JWT）、パスワードハッシュ化（bcrypt）
 - 拡張性: 将来的な機能追加に対応可能な設計
 - 保守性: コードの可読性、テスト容易性を考慮
 
@@ -26,27 +26,20 @@ ITコンサルティング、テストアウトソーシング、ライセンス
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    クライアント層                        │
-│  Webブラウザ (React/Next.js)                            │
+│  Webブラウザ (Next.js/React)                            │
 └───────────────────┬─────────────────────────────────────┘
                     │ HTTPS
 ┌───────────────────┴─────────────────────────────────────┐
 │                   アプリケーション層                      │
-│  API Gateway (Nginx/API Gateway)                        │
-│                    ↓                                     │
-│  REST API Server (Node.js/Express or Python/FastAPI)   │
-│                    ↓                                     │
-│  Business Logic Layer                                   │
-│    - マスタ管理サービス                                   │
-│    - 実績管理サービス                                     │
-│    - 分析・レポートサービス                               │
-│    - CSV取込サービス                                     │
+│  REST API Server (Node.js/Express)                      │
+│    - マスタ管理                                           │
+│    - 実績管理                                             │
+│    - 分析・レポート                                       │
 └───────────────────┬─────────────────────────────────────┘
                     │
 ┌───────────────────┴─────────────────────────────────────┐
 │                     データ層                              │
 │  PostgreSQL (主データベース)                             │
-│  Redis (キャッシュ・セッション管理)                       │
-│  File Storage (CSVファイル保管)                          │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -59,10 +52,9 @@ ITコンサルティング、テストアウトソーシング、ライセンス
   - TypeScript対応で型安全性を確保
 
 #### バックエンド
-- **Node.js/Express または Python/FastAPI**:
-  - Node.js: JavaScriptでフロントエンドと統一、非同期処理に優れる
-  - Python/FastAPI: データ分析機能を活用しやすい、数値計算ライブラリが豊富
-  - どちらもRESTful APIの構築が容易
+- **Node.js/Express**:
+  - JavaScriptでフロントエンドと統一、非同期処理に優れる
+  - RESTful APIの構築が容易
 
 #### データベース
 - **PostgreSQL**:
@@ -72,10 +64,7 @@ ITコンサルティング、テストアウトソーシング、ライセンス
   - 集計関数が豊富でレポート生成に適している
 
 #### キャッシュ
-- **Redis**:
-  - セッション管理
-  - よくアクセスされるレポート結果のキャッシュ
-  - パフォーマンス向上
+- 現行実装ではキャッシュは未導入
 
 ---
 
@@ -463,22 +452,20 @@ DELETE /api/v1/clients/:id         # 削除（論理削除）
 
 ##### プロジェクト管理
 ```
-GET    /api/v1/projects            # 一覧取得（フィルタ、ソート、ページネーション対応）
+GET    /api/v1/projects            # 一覧取得
 GET    /api/v1/projects/:id        # 詳細取得
 POST   /api/v1/projects            # 作成
 PUT    /api/v1/projects/:id        # 更新
 DELETE /api/v1/projects/:id        # 削除
-GET    /api/v1/projects/:id/budget # 予算情報取得
 ```
 
 ##### 契約管理
 ```
-GET    /api/v1/contracts                    # 一覧取得（フィルタ、ソート、ページネーション対応）
+GET    /api/v1/contracts                    # 一覧取得
 GET    /api/v1/contracts/:id                # 詳細取得
 POST   /api/v1/contracts                    # 作成
 PUT    /api/v1/contracts/:id                # 更新
 DELETE /api/v1/contracts/:id                # 削除（論理削除）
-GET    /api/v1/contracts/by-project/:project_id  # プロジェクト別取得
 ```
 
 ##### 社員マスタ管理
@@ -488,8 +475,6 @@ GET    /api/v1/employees/:id       # 詳細取得
 POST   /api/v1/employees           # 作成
 PUT    /api/v1/employees/:id       # 更新
 DELETE /api/v1/employees/:id       # 削除
-GET    /api/v1/employees/:id/cost-history  # 単価履歴取得
-POST   /api/v1/employees/:id/cost-history  # 単価履歴追加
 ```
 
 ##### パートナーマスタ管理
@@ -506,32 +491,26 @@ DELETE /api/v1/partners/:id        # 削除
 ##### 予定・アサイン計画
 ```
 GET    /api/v1/assignment-plans              # 一覧取得
-POST   /api/v1/assignment-plans              # 一括登録
+POST   /api/v1/assignment-plans              # 登録
 PUT    /api/v1/assignment-plans/:id          # 更新
 DELETE /api/v1/assignment-plans/:id          # 削除
-GET    /api/v1/assignment-plans/by-project/:project_id  # プロジェクト別取得
-GET    /api/v1/assignment-plans/by-month     # 月別取得
 ```
 
 ##### 勤務実績CSVインポート
 ```
-POST   /api/v1/work-records/import           # CSV取込
-GET    /api/v1/work-records/import/logs      # 取込ログ一覧
-GET    /api/v1/work-records/import/logs/:id  # 取込ログ詳細
+POST   /api/v1/work-records/import           # CSV取込（現行はメッセージ返却のみ）
 GET    /api/v1/work-records                  # 実績一覧取得
-GET    /api/v1/work-records/:id              # 実績詳細取得
-PUT    /api/v1/work-records/:id              # 実績更新
+POST   /api/v1/work-records                  # 実績登録
+PUT    /api/v1/work-records/:id              # 実績更新（稼働時間のみ）
 DELETE /api/v1/work-records/:id              # 実績削除
 ```
 
 ##### 月次給与実績
 ```
 GET    /api/v1/monthly-actual-costs          # 一覧取得
-GET    /api/v1/monthly-actual-costs/:id      # 詳細取得
 POST   /api/v1/monthly-actual-costs          # 登録
 PUT    /api/v1/monthly-actual-costs/:id      # 更新
 DELETE /api/v1/monthly-actual-costs/:id      # 削除
-GET    /api/v1/monthly-actual-costs/by-employee/:employee_id  # 社員別取得
 ```
 
 ##### 経費・仕入実績
@@ -546,15 +525,9 @@ DELETE /api/v1/expenses/:id                  # 削除
 ##### 売上実績
 ```
 GET    /api/v1/revenues                      # 一覧取得
-GET    /api/v1/revenues/:id                  # 詳細取得
 POST   /api/v1/revenues                      # 登録
 PUT    /api/v1/revenues/:id                  # 更新
 DELETE /api/v1/revenues/:id                  # 削除
-GET    /api/v1/revenues/by-project/:project_id  # プロジェクト別取得
-GET    /api/v1/revenues/by-month             # 月別取得
-       Query Parameters:
-       - target_month: YYYY-MM
-       - project_id: (optional)
 ```
 
 #### 4.2.4 分析・レポートAPI
@@ -562,37 +535,20 @@ GET    /api/v1/revenues/by-month             # 月別取得
 ##### プロジェクト損益レポート
 ```
 GET    /api/v1/reports/projects/:id/profit   # プロジェクト損益取得
-       Query Parameters:
-       - cost_type: 'standard' | 'actual'    # 原価計算方法
-       - start_date: YYYY-MM-DD
-       - end_date: YYYY-MM-DD
 ```
 
 ##### PM別損益レポート
 ```
 GET    /api/v1/reports/pm/:employee_id/profit  # PM別損益取得
-       Query Parameters:
-       - cost_type: 'standard' | 'actual'
-       - start_date: YYYY-MM-DD
-       - end_date: YYYY-MM-DD
 ```
 
 ##### クライアント別収益レポート
 ```
 GET    /api/v1/reports/clients/:id/revenue     # クライアント別収益取得
-       Query Parameters:
-       - start_date: YYYY-MM-DD
-       - end_date: YYYY-MM-DD
 ```
 
 ##### 稼働・コスト乖離分析
-```
-GET    /api/v1/reports/variance                # 乖離分析取得
-       Query Parameters:
-       - project_id: (optional)
-       - target_month: YYYY-MM
-       - cost_type: 'standard' | 'actual'
-```
+現行実装では未対応
 
 ##### ダッシュボード
 ```
@@ -609,14 +565,10 @@ GET    /api/v1/dashboard/alerts                # アラート情報（赤字プ�
   "success": true,
   "data": {
     // データ
-  },
-  "meta": {
-    "total": 100,
-    "page": 1,
-    "per_page": 20
   }
 }
 ```
+※ 現行実装では `meta` は未使用
 
 #### エラーレスポンス
 ```json
@@ -666,216 +618,76 @@ GET    /api/v1/dashboard/alerts                # アラート情報（赤字プ�
 - パートナーマスタ管理画面
 
 #### 5.1.3 実績管理画面
-- 予定・アサイン登録画面
-- 勤務実績CSVインポート画面
+- 予定・アサイン計画画面
+- 稼働実績画面
 - 月次給与実績登録画面
-- **月次売上実績登録画面**
-- 諸経費・ライセンス仕入登録画面
+- 売上実績画面
+- 経費実績画面
 
 #### 5.1.4 分析・レポート画面
 - 総合ダッシュボード
 - プロジェクト別損益レポート
-- PM別・部署別集計画面
+- PM別損益レポート
 - クライアント別収益レポート
-- 稼働・コスト乖離分析画面
 
 ### 5.2 主要画面の詳細設計
 
 #### 5.2.1 総合ダッシュボード
 **機能:**
-- 全社売上・利益率の表示
-- PM別利益ランキング（グラフ表示）
-- 異常値アラート（赤字プロジェクト一覧）
-- 月次トレンドグラフ
-
-**レイアウト:**
-```
-┌─────────────────────────────────────────────────┐
-│  ヘッダー（ナビゲーション）                      │
-├─────────────────────────────────────────────────┤
-│  [全社サマリー]                                  │
-│  今月売上: ¥XX,XXX,XXX  利益率: XX.X%          │
-├─────────────────────────────────────────────────┤
-│  [PM別利益ランキング]      [月次トレンド]        │
-│  (バーチャート)              (折れ線グラフ)      │
-├─────────────────────────────────────────────────┤
-│  [アラート]                                      │
-│  - プロジェクトA: 赤字警告 (-¥XXX,XXX)          │
-│  - プロジェクトB: 予算超過警告                  │
-└─────────────────────────────────────────────────┘
-```
+- サマリー表示（総売上、進行中プロジェクト数）
+- 各管理/レポート画面へのナビゲーション
 
 #### 5.2.2 プロジェクト別損益レポート
 **機能:**
-- プロジェクト単位のP&L表示
-- 標準原価/実績原価の切り替え表示
-- 期間選択機能
+- プロジェクト選択による損益サマリー表示（標準原価ベース）
 
 **表示項目:**
-- 売上（受注金額、按分処理後）
-- 直接原価（人件費）
-  - 標準原価モード: Σ(稼働時間 × 標準単価)
-  - 実績原価モード: Σ(稼働時間 × 実績算出単価)
-- 直接原価（外部パートナー）
-- 直接原価（その他経費）
-- プロジェクト利益 / 利益率
-
-**UI要素:**
-- トグルスイッチ: 「標準原価」/「実績原価」切り替え
-- 期間選択: 開始日・終了日
-- グラフ表示: 損益の内訳（円グラフ等）
+- クライアント
+- PM
+- サービス種別
+- 契約金額
+- 売上
+- 労務原価（標準）
+- 外注費
+- その他原価
+- 利益（標準）
 
 #### 5.2.3 勤務実績CSVインポート画面
-**機能:**
-- CSVファイルのアップロード
-- バリデーション結果の表示
-- エラー内容の確認・修正
-- インポート実行
-
-**フロー:**
-1. CSVファイル選択・アップロード
-2. プレビュー表示（先頭10行程度）
-3. マスタとの名寄せチェック
-4. バリデーション結果表示
-   - 成功行数 / エラー行数
-   - エラー詳細（行番号、エラー内容）
-5. エラーがある場合、CSV修正またはマスタ更新
-6. インポート実行確認
-7. インポート実行
+現行実装では未対応（APIはメッセージ返却のみ）
 
 #### 5.2.4 月次売上実績登録画面
 **機能:**
-- プロジェクト別・月別の売上実績の登録・編集
-- コンサル・テスト・ライセンス全サービス種別に対応
-- 月次売上の一覧表示・検索
-- 売上実績の一括登録（複数プロジェクト対応）
+- 売上実績の登録・編集・一覧表示
+- 配賦種別（monthly/one_time）の指定
 
 **表示項目:**
-- プロジェクトコード・プロジェクト名
-- 対象年月
-- サービス種別（コンサル/テスト/ライセンス）
-- 売上金額
-- 登録日時・更新日時
-
-**レイアウト:**
-```
-┌─────────────────────────────────────────────────┐
-│  ヘッダー（ナビゲーション）                      │
-├─────────────────────────────────────────────────┤
-│  [検索・フィルタ]                                │
-│  対象年月: [2024-01 ▼]  プロジェクト: [全て ▼] │
-│  サービス種別: [全て ▼]  [検索]                │
-├─────────────────────────────────────────────────┤
-│  [売上実績一覧]                                  │
-│  ┌───────────────────────────────────────────┐ │
-│  │ プロジェクト  │ 年月  │ 種別 │ 金額  │操作│ │
-│  ├───────────────────────────────────────────┤ │
-│  │ PRJ001       │2024-01│コンサル│1,000,000│編集│ │
-│  │ PRJ002       │2024-01│テスト  │ 800,000 │編集│ │
-│  │ PRJ003       │2024-01│ライセンス│500,000│編集│ │
-│  └───────────────────────────────────────────┘ │
-│  [+ 新規登録]                                    │
-└─────────────────────────────────────────────────┘
-
-[登録・編集モーダル]
-┌─────────────────────────────────────────┐
-│ 月次売上実績登録                         │
-├─────────────────────────────────────────┤
-│ プロジェクト: [PRJ001 ▼]                │
-│ 対象年月: [2024-01]                     │
-│ 売上金額: [¥1,000,000]                  │
-│ 備考: [________________]                │
-│                                         │
-│  [キャンセル]  [保存]                   │
-└─────────────────────────────────────────┘
-```
+- プロジェクト
+- 対象月
+- 金額
+- 配賦種別
+- 通貨
 
 **機能詳細:**
-- 一覧表示: テーブル形式で月次売上実績を表示
-- 検索・フィルタ: 対象年月、プロジェクト、サービス種別でフィルタリング
-- 新規登録: モーダルまたは別画面で売上実績を登録
-- 編集: 既存の売上実績を編集
-- 削除: 売上実績を削除（確認ダイアログ表示）
-- バリデーション:
-  - 同じプロジェクト・同じ月の重複登録チェック
-  - 金額の数値チェック（0以上）
-  - プロジェクトの存在チェック
-
-**運用フロー:**
-1. 対象月を選択
-2. プロジェクトごとに売上金額を入力
-3. 保存して月次売上実績を確定
-4. 損益レポートで売上実績が反映されることを確認
+- 一覧表示: テーブル形式で売上実績を表示
+- 新規登録/編集: モーダルで登録
+- 削除: 確認ダイアログ
 
 #### 5.2.5 契約管理画面
 **機能:**
-- プロジェクト別の契約情報の登録・編集・一覧表示
-- 1プロジェクトに対して複数の契約を管理
-- 契約情報の検索・フィルタ
+- 契約情報の登録・編集・一覧表示
 - 契約ステータス管理
 
 **表示項目:**
-- プロジェクトコード・プロジェクト名
-- 契約番号（契約枝番）
+- プロジェクト
+- 契約番号
 - 契約開始日・契約終了日
 - 契約金額
-- 契約ステータス（締結済/交渉中/キャンセル/期限切れ）
-- 登録日時・更新日時
-
-**レイアウト:**
-```
-┌─────────────────────────────────────────────────┐
-│  ヘッダー（ナビゲーション）                      │
-├─────────────────────────────────────────────────┤
-│  [検索・フィルタ]                                │
-│  プロジェクト: [全て ▼]  ステータス: [全て ▼] │
-│  期間: [開始日] ～ [終了日]  [検索]            │
-├─────────────────────────────────────────────────┤
-│  [契約一覧]                                      │
-│  ┌───────────────────────────────────────────┐ │
-│  │ プロジェクト │契約番号│開始日│終了日│金額│状態│ │
-│  ├───────────────────────────────────────────┤ │
-│  │ PRJ001      │CT001  │2024-01│2024-12│1000万│締結済│ │
-│  │ PRJ001      │CT002  │2024-06│2025-05│ 500万│交渉中│ │
-│  └───────────────────────────────────────────┘ │
-│  [+ 新規登録]                                    │
-└─────────────────────────────────────────────────┘
-
-[登録・編集モーダル]
-┌─────────────────────────────────────────┐
-│ 契約登録                                 │
-├─────────────────────────────────────────┤
-│ プロジェクト: [PRJ001 ▼]                │
-│ 契約番号: [CT001]                        │
-│ 契約開始日: [2024-01-01]                │
-│ 契約終了日: [2024-12-31]                │
-│ 契約金額: [¥10,000,000]                 │
-│ ステータス: [締結済 ▼]                  │
-│ 備考: [________________]                │
-│                                         │
-│  [キャンセル]  [保存]                   │
-└─────────────────────────────────────────┘
-```
+- 契約ステータス
 
 **機能詳細:**
 - 一覧表示: テーブル形式で契約情報を表示
-- 検索・フィルタ: プロジェクト、ステータス、期間でフィルタリング
-- 新規登録: モーダルまたは別画面で契約を登録
-- 編集: 既存の契約情報を編集
-- 削除: 契約を削除（確認ダイアログ表示、論理削除）
-- バリデーション:
-  - プロジェクトの存在チェック
-  - 契約開始日 <= 契約終了日
-  - 契約金額の数値チェック（0より大きい）
-  - 契約番号の重複チェック（プロジェクト内で一意）
-
-**運用フロー:**
-1. プロジェクトを選択
-2. 契約情報を入力（契約番号、期間、金額、ステータス）
-3. 保存
-4. 契約に基づいて売上実績を登録（必要に応じて自動按分機能を使用）
-
----
+- 新規登録/編集: モーダルで登録
+- 削除: 確認ダイアログ
 
 ## 6. ビジネスロジック設計
 
@@ -900,184 +712,25 @@ function calculateStandardCost(projectId, startDate, endDate) {
 ```
 
 #### 6.1.2 人件費実績ベース計算
-```javascript
-// プロジェクトの実績原価（人件費）計算
-function calculateActualCost(projectId, targetMonth) {
-  const workRecords = getWorkRecordsByMonth(projectId, targetMonth);
-  
-  let totalCost = 0;
-  const employeeCosts = {};
-  
-  // 社員ごとに実績コストを計算
-  for (const record of workRecords) {
-    if (record.resource_type === 'employee') {
-      const employeeId = record.employee_id;
-      
-      if (!employeeCosts[employeeId]) {
-        const actualCost = getMonthlyActualCost(employeeId, targetMonth);
-        // 実績単価 = 総支給額 / 総労働時間
-        const unitCost = actualCost.total_salary / actualCost.total_work_hours;
-        employeeCosts[employeeId] = unitCost;
-      }
-      
-      totalCost += record.hours * employeeCosts[employeeId];
-    }
-  }
-  
-  return totalCost;
-}
-```
+現行実装では未対応（標準原価ベースのみ）
 
 ### 6.2 売上実績管理ロジック
 
 #### 6.2.1 月次売上実績登録
-全てのサービス種別（コンサル・テスト・ライセンス）において、月次で売上実績を登録します。
-
-```javascript
-// 月次売上実績の登録
-function createMonthlyRevenue(projectId, revenueMonth, amount, description) {
-  // バリデーション: 同じプロジェクト・同じ月の重複チェック
-  const existing = getRevenueByProjectAndMonth(projectId, revenueMonth);
-  if (existing) {
-    throw new Error('該当月の売上実績が既に登録されています');
-  }
-  
-  const revenue = {
-    project_id: projectId,
-    revenue_month: revenueMonth,
-    amount: amount,
-    allocation_type: 'monthly',
-    description: description
-  };
-  
-  return createRevenueRecord(revenue);
-}
-```
+全てのサービス種別で月次の売上実績を登録する。
+現行実装では単純登録のみ行い、重複チェックや自動按分は未対応。
 
 #### 6.2.2 ライセンス販売の自動按分（補助機能）
-ライセンス販売において、契約期間を指定して自動的に月次按分することも可能です。
-
-```javascript
-// ライセンス契約の月次按分（補助機能）
-function allocateRevenueMonthly(projectId, contractAmount, startDate, endDate) {
-  const months = getMonthsBetween(startDate, endDate);
-  const monthlyAmount = contractAmount / months.length;
-  
-  const revenues = months.map(month => ({
-    project_id: projectId,
-    revenue_month: month,
-    amount: monthlyAmount,
-    allocation_type: 'monthly'
-  }));
-  
-  return createRevenueRecords(revenues);
-}
-```
-
-**注意:** 自動按分機能は補助的なもので、最終的には月次売上実績登録画面で実際の売上金額を確認・修正することが推奨されます。
+現行実装では未対応
 
 #### 6.2.3 契約ベースの自動按分（補助機能）
-契約テーブルに登録された契約情報から、月次売上実績を自動生成する補助機能です。
-
-```javascript
-// 契約から月次売上実績を自動按分
-function allocateRevenueFromContract(contractId) {
-  const contract = getContract(contractId);
-  if (!contract || contract.contract_status !== '締結済') {
-    throw new Error('有効な契約が存在しません');
-  }
-  
-  const months = getMonthsBetween(contract.start_date, contract.end_date);
-  const monthlyAmount = contract.contract_amount / months.length;
-  
-  // 既存の売上実績と重複しないかチェック
-  const existingRevenues = getRevenuesByProjectAndPeriod(
-    contract.project_id, 
-    contract.start_date, 
-    contract.end_date
-  );
-  
-  if (existingRevenues.length > 0) {
-    throw new Error('該当期間に既に売上実績が登録されています');
-  }
-  
-  const revenues = months.map(month => ({
-    project_id: contract.project_id,
-    revenue_month: month,
-    amount: monthlyAmount,
-    allocation_type: 'monthly',
-    description: `契約${contract.contract_number}より自動按分`
-  }));
-  
-  return createRevenueRecords(revenues);
-}
-```
-
-**契約と売上実績の関係:**
-- 契約テーブルは契約情報のマスタとして機能
-- 売上実績（revenue_records）は実際の計上データとして機能
-- 契約から自動按分することも可能だが、最終的には月次売上実績登録画面で実際の金額を確認・修正することが推奨
-- 1プロジェクトに複数の契約がある場合、それぞれの契約から按分された売上を合計する
+現行実装では未対応
 
 ### 6.3 CSVインポート処理
-
-#### 6.3.1 CSV形式仕様
-```
-社員名,日付,プロジェクトコード,稼働時間
-山田太郎,2024-01-15,PRJ001,8.0
-佐藤花子,2024-01-15,PRJ002,6.0
-```
-
-#### 6.3.2 名寄せロジック
-1. CSVの「社員名」とemployeesテーブルのnameを照合
-2. CSVの「プロジェクトコード」とprojectsテーブルのproject_codeを照合
-3. 一致しない場合はエラーとして記録
-4. エラーがある場合、インポートを中断（運用でマスタを修正）
-
-#### 6.3.3 バリデーション
-- 必須項目チェック（社員名、日付、プロジェクトコード、稼働時間）
-- データ型チェック（日付形式、数値）
-- マスタ存在チェック（社員、プロジェクト）
-- 稼働時間の妥当性チェック（0 < hours <= 24）
+現行実装では未対応（APIはメッセージ返却のみ）
 
 ### 6.4 損益計算ロジック
-
-```javascript
-// プロジェクト損益計算
-function calculateProjectProfit(projectId, startDate, endDate, costType) {
-  // 売上取得
-  const revenue = getRevenueSum(projectId, startDate, endDate);
-  
-  // 原価計算
-  let laborCost;
-  if (costType === 'standard') {
-    laborCost = calculateStandardCost(projectId, startDate, endDate);
-  } else {
-    laborCost = calculateActualCost(projectId, startDate, endDate);
-  }
-  
-  const partnerCost = getPartnerCostSum(projectId, startDate, endDate);
-  const otherCost = getExpenseSum(projectId, startDate, endDate);
-  
-  const totalCost = laborCost + partnerCost + otherCost;
-  const profit = revenue - totalCost;
-  const profitRate = revenue > 0 ? (profit / revenue) * 100 : 0;
-  
-  return {
-    revenue,
-    cost: {
-      labor: laborCost,
-      partner: partnerCost,
-      other: otherCost,
-      total: totalCost
-    },
-    profit,
-    profit_rate: profitRate
-  };
-}
-```
-
----
+現行実装では DB ビュー `v_project_profit_standard` を用いた標準原価ベースの損益のみを提供。
 
 ## 7. セキュリティ設計
 
@@ -1094,8 +747,7 @@ function calculateProjectProfit(projectId, startDate, endDate, costType) {
 - XSS対策: 入力値のサニタイズ、出力時のエスケープ
 
 ### 7.3 監査ログ
-- 重要操作（マスタ更新、実績登録等）を監査ログに記録
-- ログ項目: ユーザーID、操作種別、対象データ、変更前後の値、タイムスタンプ、IPアドレス
+現行実装では未対応
 
 ### 7.4 バックアップ
 - データベースの日次バックアップ
@@ -1111,17 +763,10 @@ function calculateProjectProfit(projectId, startDate, endDate, costType) {
 - ビューの活用（集計処理の高速化）
 
 ### 8.2 キャッシュ戦略
-- Redisを使用したキャッシュ
-- キャッシュ対象:
-  - レポート結果（TTL: 1時間）
-  - マスタデータ（TTL: 24時間）
-- キャッシュキーの設計: `cache:{resource}:{id}`
+現行実装では未対応
 
 ### 8.3 ページネーション
-- 一覧画面はページネーション対応（デフォルト: 20件/ページ）
-- 無限スクロールまたは「もっと見る」ボタン
-
----
+現行実装では未対応（一覧は全件取得/表示）
 
 ## 9. エラーハンドリング
 
@@ -1141,14 +786,7 @@ function calculateProjectProfit(projectId, startDate, endDate, costType) {
 
 ## 10. テスト設計
 
-### 10.1 テスト方針
-- 単体テスト: ビジネスロジック関数のテスト
-- 統合テスト: APIエンドポイントのテスト
-- E2Eテスト: 主要なユーザーフローのテスト
-
-### 10.2 テストカバレッジ目標
-- 単体テスト: 80%以上
-- 統合テスト: 主要機能の100%
+詳細は `test_plan.md` を参照。
 
 ---
 
@@ -1170,35 +808,7 @@ function calculateProjectProfit(projectId, startDate, endDate, costType) {
   5. 本番環境へデプロイ（承認後）
 
 ### 11.3 インフラ構成案
-```
-┌─────────────────────────────────────┐
-│  Load Balancer (Nginx)              │
-└───────────┬─────────────────────────┘
-            │
-    ┌───────┴───────┐
-    │               │
-┌───▼───┐      ┌───▼───┐
-│ App 1 │      │ App 2 │  (アプリケーションサーバー)
-└───┬───┘      └───┬───┘
-    │               │
-    └───────┬───────┘
-            │
-    ┌───────▼───────┐
-    │  PostgreSQL   │  (マスター・スレーブ構成)
-    │  (Primary)    │
-    └───────┬───────┘
-            │
-    ┌───────▼───────┐
-    │  PostgreSQL   │
-    │  (Replica)    │
-    └───────────────┘
-    
-    ┌───────────────┐
-    │     Redis     │  (キャッシュ・セッション)
-    └───────────────┘
-```
-
----
+現行実装はローカル単一構成（Next.js + Express + PostgreSQL）を前提。
 
 ## 12. 開発フェーズ
 
@@ -1217,7 +827,6 @@ function calculateProjectProfit(projectId, startDate, endDate, costType) {
 
 ### フェーズ3: 実績管理機能（4週間）
 - 予定・アサイン登録
-- CSVインポート機能
 - 給与実績登録
 - **月次売上実績登録**
 - 経費登録
@@ -1226,7 +835,6 @@ function calculateProjectProfit(projectId, startDate, endDate, costType) {
 - プロジェクト損益レポート
 - PM別・クライアント別レポート
 - ダッシュボード
-- 乖離分析
 
 ### フェーズ5: テスト・デプロイ（2週間）
 - 結合テスト
@@ -1239,9 +847,7 @@ function calculateProjectProfit(projectId, startDate, endDate, costType) {
 ## 13. 課題への対応
 
 ### 13.1 CSVの名寄せ
-- CSV取り込み時、マスタと一致しない場合はエラーとする
-- エラー内容をユーザーに表示
-- マスタを更新後、再インポート
+現行実装では未対応
 
 ### 13.2 標準原価の履歴管理
 - `employee_cost_history`テーブルで履歴を保持
@@ -1249,13 +855,7 @@ function calculateProjectProfit(projectId, startDate, endDate, costType) {
 - 過去の実績データには遡及しない（当時の単価を使用）
 
 ### 13.3 月次売上実績の管理
-- `revenue_records`テーブルで月次売上を管理
-- 全サービス種別（コンサル・テスト・ライセンス）で月次売上実績を登録
-- 月次売上実績登録画面から手動で登録
-- ライセンス販売については、契約期間を指定して自動按分する補助機能も提供（任意）
-- 自動按分方法: 契約金額を契約月数で割る
-
----
+現行実装では手動で売上実績を登録。自動按分は未対応。
 
 ## 14. 今後の拡張性
 

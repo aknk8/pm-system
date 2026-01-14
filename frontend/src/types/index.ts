@@ -94,3 +94,87 @@ export interface ProjectProfit {
   profit: number;
   profit_rate: number;
 }
+
+export interface ProjectProfitReport {
+  project_id: number;
+  project_code: string;
+  project_name: string;
+  client_id: number;
+  client_name: string;
+  pm_employee_id: number;
+  pm_name: string;
+  service_type: string;
+  contract_amount: number | null;
+  revenue: number | null;
+  cost_labor_standard: number | null;
+  cost_partner: number | null;
+  cost_other: number | null;
+  profit_standard: number | null;
+}
+
+export interface ClientRevenueReport {
+  client_id: number;
+  client_name: string;
+  total_revenue: number | null;
+}
+
+export interface AssignmentPlan {
+  plan_id: number;
+  project_id: number;
+  resource_type: 'employee' | 'partner';
+  employee_id?: number | null;
+  partner_id?: number | null;
+  target_month: string;
+  planned_hours: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkRecord {
+  record_id: number;
+  project_id: number;
+  resource_type: 'employee' | 'partner';
+  employee_id?: number | null;
+  partner_id?: number | null;
+  work_date: string;
+  hours: number;
+  import_batch_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MonthlyActualCost {
+  cost_id: number;
+  employee_id: number;
+  target_month: string;
+  total_salary: number;
+  total_work_hours: number;
+  calculated_unit_cost?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExpenseRecord {
+  expense_id: number;
+  project_id: number;
+  expense_type: string;
+  amount: number;
+  currency: string;
+  occurred_date: string;
+  description?: string;
+  invoice_number?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RevenueRecord {
+  revenue_id: number;
+  project_id: number;
+  revenue_month: string;
+  amount: number;
+  currency: string;
+  allocation_type: 'monthly' | 'one_time';
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
